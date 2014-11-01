@@ -1,6 +1,6 @@
 import log
-import RPi.GPIO as GPIO #import this on Rapsverry Pi
-#import GPIO_dummy as GPIO #import this in case you test on your PC which doesnt have GPIO
+#import RPi.GPIO as GPIO #import this on Rapsverry Pi
+import GPIO_dummy as GPIO #import this in case you test on your PC which doesnt have GPIO
 
 
 out_pins = [15] #list of OUTPUT GPIO pins to manage

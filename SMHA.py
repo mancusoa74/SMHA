@@ -11,17 +11,20 @@ import sys
 # v.1.0: initial framework version with basic functionalities
 # v.1.0.1: introduced a couple of decorator to be more python compliant :)
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 # messages have the following format
 # _id: UUID of the message
 # src_id: UUID of the sender
 # dst_pin: pin to control )Rapsberry BCM mode)
 # cmd: command to execute (unsubscribe, switch_on, switch_off)
 #
-# example: {"_id":"32434", "src_id":"uuid1", "dst_pin":"1", "cmd":"unsubscribe"}
+# example: {"_id":"32434", src_id":"uuid1", "reply_to": "2432", "dst_pin":"1", "cmd":"unsubscribe", "result":"1"}
 
 # list of authorize clients
 authorized_client_ids = ["YOUR CLIENT ID"]
+
+SMHA_ID = "YOUR SERVER ID"
+
 
 
 # command handlers
@@ -52,9 +55,11 @@ def cmd_switch_off_handler(message):
 def cmd_status_handler(message):
 	try:
 		log.debug("handling cmd_status")
+		_id = message['_id']
 		dst_pin = int(message['dst_pin'])
 		status = gpio.status(dst_pin)
 		log.info("GPIO %s status: %s" %(dst_pin, status))
+		pubnub.send(SMHA_ID, _id, 'status', status)
 	except:
 		log.error("Error in executing cmd_status_handler")
 
@@ -74,12 +79,14 @@ def authorize(func):
 		try:
 			log.debug("authorizing message in @decorator")
 			_id = args[0]['_id']
-			src_id = args[0]['src_id']
-			auth = src_id in authorized_client_ids
-			log.info("pubnub message %s is authorization: %s" %(_id, auth))
+			src_id = (args[0]['src_id'])
+			auth = src_id in authorized_client_ids or (src_id == SMHA_ID)
+			log.info("pubnub message %s authorization: %s" %(_id, auth))
 			if not auth: 
 				log.error('pubnub message Authorization Failed.')
+				log.debug("here5")
 				return None
+			log.info("pubnub message AUTHORIZED")
 			return func(*args, **kwargs)
 		except:
 			log.error("Error in executing authorize decorator")
@@ -89,8 +96,10 @@ def authorize(func):
 def validate(func):
 	def validate_and_call(*args, **kwargs):
 		try:
-			log.debug("validating message in @decorator")
-			if not (('_id' in args[0]) & ('src_id' in args[0]) & ('dst_pin' in args[0]) & ('cmd' in args[0])):
+			log.debug("validating message in @decorator")		
+			log.debug("pubnub message received: %s" %args[0])
+			 #{"_id":"32434", src_id":"uuid1", "reply_to": "2432", "dst_pin":"1", "cmd":"unsubscribe", "result":"1"}
+			if not (('_id' in args[0]) & ('src_id' in args[0]) & ('reply_to' in args[0]) & ('dst_pin' in args[0]) & ('cmd' in args[0]) & ('result' in args[0])):
 				log.error('pubnub message Validation Failed.')
 				log.error("pubsub message format INVALID and discarded")
 				return None
@@ -98,14 +107,17 @@ def validate(func):
 				log.info("pubnub message VALIDATED")
 				_id = args[0]['_id']
 				src_id = args[0]['src_id']
+				reply_to = args[0]['reply_to']
 				dst_pin = args[0]['dst_pin']
 				cmd = args[0]['cmd']
+				result = args[0]['result']
 
-				log.debug("pubnub message received: %s" %args[0])
 				log.debug("pubnub message _id: %s" %_id)
+				log.debug("pubnub message reply_to: %s" %reply_to)
 				log.debug("pubnub src_id: %s" %src_id)
 				log.debug("pubnub dst_pin: %s" %dst_pin)
 				log.debug("pubnub cmd: %s" %cmd)
+				log.debug("pubnub result: %s" %result)
 				return func(*args, **kwargs)
 		except:
 			log.error("Error in executing validate decorator")
@@ -117,13 +129,17 @@ def validate(func):
 @authorize
 def message_handler(message):
 	cmd = message['cmd']
-		
+	src_id = message['src_id']
+
 	# if message is validated and authorized then execute specific command functions
 	# if not discard message
-	if cmd in message_cbs:
-		message_cbs[cmd](message)
+	if src_id != SMHA_ID:
+		if cmd in message_cbs:
+			message_cbs[cmd](message)
+		else:
+			log.error("pubnub message command not recognized")
 	else:
-		log.error("pubnub message command not recognized")
+		log.info("not handling outbound published command")
 	
 
 # call back fron pubnub library on reception of a message
@@ -136,12 +152,11 @@ def pubnub_message_handler(message, channel):
 
 		
 def main():
-	log.init() #init logging 
-	log.info("Staring SMHAutomation v %s" %VERSION)
-	gpio.init() #init GPIO communication
-	pubnub.init(pubnub_message_handler) #init and subscribe to pubnub channel
+		log.init() #init logging 
+		log.info("Staring SMHAutomation v %s" %VERSION)
+		gpio.init() #init GPIO communication
+		pubnub.init(pubnub_message_handler) #init and subscribe to pubnub channel
 	
+
 if __name__ == "__main__":
 	main()
-
-

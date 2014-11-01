@@ -15,5 +15,8 @@ def output(pin, mode):
 
 def input(pin):
 	print("fake GPIO.input")
+	return 99
+
+
 
 	
