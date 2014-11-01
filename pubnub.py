@@ -10,6 +10,8 @@ PUB_KEY = "YOUR PUB KEY"
 CHIPER_KEY = "YOUR CHIPER KEY" # generate it with openssl enc -aes-256-cbc -k secret -P -md sha1
 CHANNEL = 'YOUR CHANNEL'
 
+
+
 def pubnub_error_cb(message):
     log.error("ERROR : " + str(message))
 
@@ -27,19 +29,32 @@ def pubnub_disconnect_cb(message):
 
 def pubnub_message_cb(message, channel):
     global message_cb
-    message_cb(message, channel)
+
+    try:
+        message_cb(message, channel)
+    except:
+        log.error("Error in executing pubnub.pubnub_message_cb")
 
 def unsubscribe():
     global pubnub
-    pubnub.unsubscribe(channel=CHANNEL)
-    log.info("pubnub UNSUBSCRIBED")
+
+    try:
+        pubnub.unsubscribe(channel=CHANNEL)
+        log.info("pubnub UNSUBSCRIBED")
+    except:
+        log.error("Error in executing pubnub.unsubscribe")
 
 def init(func):
     global pubnub
     global message_cb
-    message_cb = func
-    log.info("pubnub SUBSCRIBE")
-    pubnub = Pubnub(publish_key=PUB_KEY, subscribe_key=SUB_KEY, cipher_key=CHIPER_KEY, ssl_on=True)
-    pubnub.subscribe(CHANNEL, callback=pubnub_message_cb, error=pubnub_error_cb, connect=pubnub_connect_cb, reconnect=pubnub_reconnect_cb, disconnect=pubnub_disconnect_cb)
-    log.info("pubnub SUBSCRIBED")
+
+    try:
+        message_cb = func
+        log.info("pubnub SUBSCRIBE")
+        pubnub = Pubnub(publish_key=PUB_KEY, subscribe_key=SUB_KEY, cipher_key=CHIPER_KEY, ssl_on=True)
+        pubnub.subscribe(CHANNEL, callback=pubnub_message_cb, error=pubnub_error_cb, connect=pubnub_connect_cb, reconnect=pubnub_reconnect_cb, disconnect=pubnub_disconnect_cb)
+        log.info("pubnub SUBSCRIBED")
+    except:
+        log.error("Error initializing pubnub...Cannot continue")
+        raise SystemExit
 
