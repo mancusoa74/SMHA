@@ -1,0 +1,1 @@
+gcc -o dth11_sensor dth11_sensor.c  -L/usr/local/lib -lwiringPi

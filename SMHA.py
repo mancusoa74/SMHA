@@ -4,14 +4,19 @@ import log
 import pubnub
 import gpio
 import sys
+import schedule
+import time
+import subprocess
 
 # SMHAutomation: simple framework for my home automation long term project
 # Antonio "monk" Mancuso - October 2014
 #
 # v.1.0: initial framework version with basic functionalities
 # v.1.0.1: introduced a couple of decorator to be more python compliant :)
+# v.1.0.2: gpio.status seding pubnub reply message
+# v.1.0.3: adding temperature measurement and monitoring on freeboard.io
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 # messages have the following format
 # _id: UUID of the message
 # src_id: UUID of the sender
@@ -22,10 +27,10 @@ VERSION = "1.0.2"
 
 # list of authorize clients
 authorized_client_ids = ["YOUR CLIENT ID"]
-
 SMHA_ID = "YOUR SERVER ID"
 
 
+CALDAIA_GPIO = 15
 
 # command handlers
 def cmd_unsubscribe_handler(message):
@@ -66,12 +71,17 @@ def cmd_status_handler(message):
 def cmd_test_handler(message):
 	log.debug("handling cmd_test")
 
+def cmd_testfb_handler(message):
+	log.debug("handling cmd_testfb")
+	pubnub.fb_status()
+
 # mapping between commands and handler
 message_cbs = {"unsubscribe" : cmd_unsubscribe_handler,
 			   "switch_on"   : cmd_switch_on_handler,
 			   "switch_off"  : cmd_switch_off_handler,
 			   "status"      : cmd_status_handler,
-			   "test"        : cmd_test_handler
+			   "test"        : cmd_test_handler,
+			   "testfb"      : cmd_testfb_handler
 			  }
 
 def authorize(func):
@@ -150,12 +160,34 @@ def pubnub_message_handler(message, channel):
 	else:
 		message_handler(message)
 
+
+def update_fb_status_caldaia():
+	log.info("updating Caldaia status on FB")
+	status = gpio.status(CALDAIA_GPIO)
+	log.info("GPIO %s status: %s" %(CALDAIA_GPIO, status))
+	pubnub.fb_update_status_caldaia(status)
+
+
+def update_fb_status_temp():
+	command = "/home/pi/SMHA/DTH11/dth11_sensor"
+	process = subprocess.Popen(command, stdout=subprocess.PIPE)
+	temp = process.communicate()[0]
+	log.info("updating Temperature: %s statuys on FB" %temp)
+	pubnub.fb_update_status_temp(temp)
+
 		
 def main():
 		log.init() #init logging 
 		log.info("Staring SMHAutomation v %s" %VERSION)
 		gpio.init() #init GPIO communication
 		pubnub.init(pubnub_message_handler) #init and subscribe to pubnub channel
+
+		schedule.every(5).seconds.do(update_fb_status_caldaia)
+		schedule.every(120).seconds.do(update_fb_status_temp)
+
+		while True:
+			schedule.run_pending()
+			time.sleep(1)
 	
 
 if __name__ == "__main__":
